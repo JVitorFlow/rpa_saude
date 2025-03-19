@@ -1,24 +1,44 @@
 from datetime import datetime
 from src.config.logger import logger
 
-def formatar_data_iso(data):
+from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+def formatar_data_iso(valor: str) -> str:
     """
-    Converte uma data do formato 'DD/MM/YYYY - HH:MM:SS' para 'YYYY-MM-DDTHH:MM:SSZ'.
+    Tenta converter uma data no formato 'dd/mm/yyyy' ou 'dd/mm/yyyy HH:MM:SS'
+    para o formato ISO 'yyyy-mm-dd' ou 'yyyy-mm-ddTHH:MM:SS'.
 
-    Args:
-        data (str): Data no formato 'DD/MM/YYYY - HH:MM:SS'.
-
-    Returns:
-        str: Data formatada no padrão ISO 8601 ou None se inválida.
+    Retorna None se não conseguir converter.
     """
-    try:
-        if not data:
-            return None
-
-        # Converter '01/03/2024 - 18:34:36' -> '2024-03-01T18:34:36Z'
-        data_formatada = datetime.strptime(data, "%d/%m/%Y - %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")
-        return data_formatada
-
-    except ValueError as e:
-        logger.error(f"⚠️ Erro ao converter data '{data}': {str(e)}")
+    if not valor:
         return None
+    
+    # Remove espaços extras e possíveis duplicações
+    valor = valor.strip()
+    # Caso existam dois "//", remove duplicações
+    valor = valor.replace("//", "/")
+
+    # 1. Tenta parsear como dd/mm/yyyy
+    try:
+        dt = datetime.strptime(valor, "%d/%m/%Y")
+        # Se quiser só data sem horário, use dt.date().isoformat()
+        # Se preferir 'yyyy-mm-ddTHH:MM:SS', mantenha dt.isoformat().
+        return dt.date().isoformat()
+    except ValueError:
+        pass  # Se falhar, tenta outro formato
+
+    # 2. Tenta parsear como dd/mm/yyyy HH:MM:SS
+    formatos_possiveis = ["%d/%m/%Y %H:%M:%S", "%d/%m/%Y - %H:%M:%S"]
+    for formato in formatos_possiveis:
+        try:
+            dt = datetime.strptime(valor, formato)
+            return dt.isoformat()
+        except ValueError:
+            continue
+    
+    logger.error(f"Erro ao converter data '{valor}': formato não suportado.")
+    return None
+

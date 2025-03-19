@@ -3,18 +3,18 @@ import re
 import time
 import traceback
 import unicodedata
+import pyautogui
+
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-import pyautogui
-import pytesseract
-from PIL import Image, ImageEnhance, ImageFilter
 from pywinauto import Application
-from pywinauto.timings import TimeoutError
-
+from .services.popup_services import (
+    tratar_pop_up_informacao,
+    validar_popup_data_realizacao,
+)
 from src.config.logger import logger
-
+from src.controllers.api_handler import atualizar_item_sismama, atualizar_item_erro_sismama
 
 def is_valid_size(size_value: Any) -> bool:
     """
@@ -33,51 +33,6 @@ def is_valid_size(size_value: Any) -> bool:
             return float(match.group()) > 0
 
     return False
-
-
-def preparar_imagem_para_ocr(imagem: Image.Image) -> Image.Image:
-    """
-    Prepara a imagem para OCR:
-      - Converte para escala de cinza,
-      - Aumenta o contraste,
-      - Aplica filtro de nitidez.
-    """
-    imagem = imagem.convert("L")
-    enhancer = ImageEnhance.Contrast(imagem)
-    imagem = enhancer.enhance(2)
-    imagem = imagem.filter(ImageFilter.SHARPEN)
-    return imagem
-
-
-def captura_texto_pop_up(left: int, top: int, width: int, height: int) -> str:
-    """
-    Captura uma região da tela e extrai texto via OCR.
-    Retorna o texto extraído, aplicando correções pontuais.
-    """
-    screenshot = pyautogui.screenshot(region=(left, top, width, height))
-    imagem_preparada = preparar_imagem_para_ocr(screenshot)
-    custom_config = r"--oem 3 --psm 11"
-    texto_bruto = pytesseract.image_to_string(imagem_preparada, config=custom_config)
-
-    # Correções simples de OCR
-    correcoes = {
-        "Data de realizagdo": "Data de realização",
-        "informagdo": "informação",
-    }
-    texto_corrigido = texto_bruto
-    for errado, correto in correcoes.items():
-        texto_corrigido = texto_corrigido.replace(errado, correto)
-
-    padrao = re.compile(
-        r"Data de realização (\d{2}/\d{2}/\d{4}) superior a (\d+) meses"
-    )
-    match = padrao.search(texto_corrigido)
-    if match:
-        data = match.group(1)
-        meses = match.group(2)
-        return f"Data de realização: {data}, Superior a {meses} meses ou fora do ano corrente."
-    else:
-        return texto_corrigido
 
 
 def carregar_variaveis_ambiente() -> tuple:
@@ -112,7 +67,8 @@ class SismamaDigitador:
     Divide o fluxo de cadastro em etapas menores para facilitar manutenção e escalabilidade.
     """
 
-    def __init__(self):
+    def __init__(self, api_client):
+        self.api_client = api_client
         # Carrega as configurações a partir de variáveis de ambiente
         (
             self.caminho_projeto,
@@ -181,7 +137,9 @@ class SismamaDigitador:
         if not self._dados_suficientes(shift_data) or not is_valid_size(
             shift_data.get("tamanho_lesao")
         ):
-            logger.info(f"Dados insuficientes para o item {item_id}. Pulando.")
+            mensagem_erro = f"Dados insuficientes para o item {item_id}. Pulando."
+            logger.info(mensagem_erro)
+            atualizar_item_erro_sismama(self.api_client, item_id, mensagem_erro)
             return
 
         # Executa o fluxo de cadastro
@@ -189,12 +147,18 @@ class SismamaDigitador:
         self._preencher_campos_iniciais(shift_data)
         self._preencher_endereco(shift_data, app)
         self._preencher_caracteristicas_lesao(shift_data, app)
-        self._preencher_coleta(os_number, shift_data, app)
+        coleta_ok = self._preencher_coleta(os_number, shift_data, app, item_id)
+        if not coleta_ok:
+            logger.info(f"Cadastro cancelado para o item {item_id} devido ao pop-up.")
+            return
 
         # Salva e trata pop-up
         pyautogui.press(["F5"])
         time.sleep(1)
-        self._tratar_pop_up(app)
+        popup_encontrado = tratar_pop_up_informacao(app, self.api_client, item_id)
+        if not popup_encontrado:
+            logger.info(f"Nenhum popup detectado. Atualizando item {item_id} como COMPLETED")
+            atualizar_item_sismama(self.api_client, item_id)
 
     def _dados_suficientes(self, shift_data: Dict[str, Any]) -> bool:
         """
@@ -213,7 +177,9 @@ class SismamaDigitador:
         """
         Preenche campos iniciais como CNES, Cartão SUS, sexo, nome, data de nascimento, idade, etc.
         """
-        pyautogui.write(shift_data.get("cnes", "NI"))
+        cnes = 2078287
+        # pyautogui.write(shift_data.get("cnes", "NI"))
+        pyautogui.write(str(cnes))
         pyautogui.press(["tab"] * 2)
 
         cartao_sus = shift_data.get("cartao_sus")
@@ -249,10 +215,21 @@ class SismamaDigitador:
         pyautogui.write(str(shift_data.get("idade_paciente", "0")))
         pyautogui.press(["tab"])
 
+        raca_etinia = shift_data.get("raca_etinia", "Não especificado (NI)").strip()
+        if raca_etinia.lower() == "não especificado (ni)":
+            pyautogui.press(["tab"])  # Pula os campos relacionados
+        else:
+            pyautogui.write(raca_etinia)
+            print("OK")
+
     def _preencher_endereco(self, shift_data: Dict[str, Any], app: Application) -> None:
         """
         Preenche os dados de endereço, UF, município, etc.
         """
+        nacionalidade = "BRASIL"
+        pyautogui.write(nacionalidade)
+        pyautogui.press(["tab"])
+
         logradouro = shift_data.get("logradouro", "NI").strip()
         if logradouro == "Não especificado (NI)":
             logradouro = "NI"
@@ -278,6 +255,7 @@ class SismamaDigitador:
                 for ch in unicodedata.normalize("NFD", municipio)
                 if unicodedata.category(ch) != "Mn"
             )
+
         pyautogui.write(municipio)
         pyautogui.press(["tab"] * 6)
         pyautogui.press(["right"] * 2)  # Seleciona "biópsia/peça"
@@ -370,8 +348,8 @@ class SismamaDigitador:
         pyautogui.press(["down"] * 2)  # Biópsia por agulha grossa
 
     def _preencher_coleta(
-        self, os_number: str, shift_data: Dict[str, Any], app: Application
-    ) -> None:
+        self, os_number: str, shift_data: Dict[str, Any], app: Application, item_id: int
+    ) -> bool:
         """
         Preenche os dados de coleta, número do exame e data de liberação.
         """
@@ -382,11 +360,19 @@ class SismamaDigitador:
         else:
             logger.info("Data de coleta não especificada.")
 
+        pyautogui.press(["tab"])
+        time.sleep(1)
+
+        if validar_popup_data_realizacao(app, self.api_client, item_id):
+            logger.info("Cadastro cancelado devido ao pop-up de data de realização.")
+            return False
+
         pyautogui.press(["tab"] * 2)
         numero_exame = os_number.replace("-", "")
         pyautogui.write(numero_exame)
-        pyautogui.press(["tab"])
 
+
+        pyautogui.press(["tab"])
         recebido_em = shift_data.get("data_coleta", "").strip()
         if recebido_em:
             self._digitar_data_coleta(recebido_em)
@@ -416,6 +402,7 @@ class SismamaDigitador:
         pyautogui.press(["tab"])
         med_responsavel = "10304501883"
         pyautogui.write(med_responsavel)
+        return True
 
     def _digitar_data_coleta(self, data_str: str) -> None:
         """
@@ -426,32 +413,6 @@ class SismamaDigitador:
             pyautogui.write(dt.strftime("%d%m%Y"))
         except ValueError:
             logger.info(f"Formato inválido para data: {data_str}")
-
-    def _tratar_pop_up_informacao(self, app: Application) -> None:
-        """
-        Aguarda e trata o pop-up de 'Informação' após salvar os dados.
-        Se o pop-up for encontrado, extrai o texto via OCR e clica em OK.
-        """
-        try:
-            dialog = app.window(class_name="#32770", title="Informação")
-            dialog.wait("exists visible", timeout=4)
-            if dialog.exists(timeout=4):
-                partes = [
-                    child.window_text()
-                    for child in dialog.children()
-                    if child.friendly_class_name() == "Static"
-                ]
-                mensagem = (
-                    " ".join(partes).replace("\r", " ").replace("\n", " ").strip()
-                )
-                logger.info(f"Pop-up 'Informação': {mensagem}")
-                dialog.child_window(title="OK", control_type="Button").click()
-            else:
-                logger.info("Pop-up 'Informação' não encontrado.")
-        except TimeoutError:
-            logger.warning(
-                "O pop-up 'Informação' não apareceu dentro do tempo esperado."
-            )
 
 
 # Exemplo de uso direto

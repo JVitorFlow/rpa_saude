@@ -7,7 +7,7 @@ from src.config.auth_service import AuthenticationService
 from src.config.logger import logger
 
 # Caminho base das imagens
-BASE_IMAGE_PATH = Path("images/afip")
+BASE_IMAGE_PATH = Path(os.getenv("BASE_IMAGE_PATH", "images/afip"))
 
 
 class AutomacaoImageProcess:

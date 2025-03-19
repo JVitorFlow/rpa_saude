@@ -10,6 +10,7 @@ from src.controllers.api_handler import (
 from src.controllers.paciente_controller import (
     extrair_dados_paciente,
     obter_nome_paciente,
+    extrair_informacoes_paciente,
 )
 from src.controllers.anatomopatologico_controller import extrair_dados_anatomopatologico
 from src.controllers.endereco_controller import extrair_dados_endereco
@@ -58,7 +59,7 @@ class ShiftController:
             logger.success("✅ Login realizado com sucesso.")
             return True
         except Exception as e:
-            logger.error(f"❌ Erro durante o login: {str(e)}")
+            logger.error(f"Erro durante o login: {str(e)}")
             return False
 
     def acessar_os_consulta(self):
@@ -70,7 +71,7 @@ class ShiftController:
             logger.success("✅ Página de O.S Consulta acessada com sucesso.")
             return True
         except Exception as e:
-            logger.error(f"❌ Erro ao acessar O.S Consulta: {str(e)}")
+            logger.error(f"Erro ao acessar O.S Consulta: {str(e)}")
             return False
 
     def processar_dados(self, tasks):
@@ -95,13 +96,14 @@ class ShiftController:
             atualizar_tarefa_inicio(self.api_client, task_id, nome_pessoa)
             atualizar_item_inicio(self.api_client, item_id)
 
-            if not buscar_os_no_sistema(self.driver, self.api_client, task_id, item_id, os_numero):
-                continue  # ❌ Pula para a próxima O.S.
+            if not buscar_os_no_sistema(
+                self.driver, self.api_client, task_id, item_id, os_numero
+            ):
+                continue  # Pula para a próxima O.S.
 
             dados_extraidos = self._extrair_dados_do_shift(os_numero, nome_pessoa)
             if not dados_extraidos:
                 continue
-
 
             enviar_dados_api(self.api_client, task_id, item_id, dados_extraidos)
             atualizar_item_fim(
@@ -132,6 +134,7 @@ class ShiftController:
         if not esperar_tela_manutencao(self.driver):
             return None
 
+        dados_paciente_guia_geral = extrair_informacoes_paciente(self.driver)
         dados_endereco = extrair_dados_endereco(self.driver)
         fechar_janela_manutencao(self.driver)
 
@@ -140,6 +143,7 @@ class ShiftController:
             "nome_paciente": nome_pessoa,
             **dados_paciente,
             **dados_anatomopatologico,
+            **dados_paciente_guia_geral,
             **dados_endereco,
         }
 

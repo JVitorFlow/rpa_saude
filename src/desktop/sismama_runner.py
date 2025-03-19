@@ -8,7 +8,7 @@ from typing import List, Any
 import pygetwindow as gw
 from utils.imagens import espera_imagem_aparecer
 from src.config.logger import logger
-from .sismama_digitador import digita_dados
+from .sismama_digitador import SismamaDigitador
 
 class SismamaRunner:
     """
@@ -91,10 +91,14 @@ class SismamaRunner:
         logger.info("Obtendo dados pendentes do estágio SISMAMA via API.")
         dados_sismama = self.api_client.get_sismama_data()
 
-        if not dados_sismama:
-            logger.info("Nenhum dado encontrado para o SISMAMA. Encerrando execução.")
+        if isinstance(dados_sismama, dict) and "detail" in dados_sismama:
+            logger.info(f"Nenhum dado pendente para SIS MAMA. Resposta da API: {dados_sismama['detail']}")
             return
-
+        
+        if not dados_sismama:
+            logger.info("Nenhum dado pendente para SIS MAMA.")
+            return
+        
         logger.info(f"Processando {len(dados_sismama)} itens autorizados para o SISMAMA.")
         self._abrir_sismama()
         self._preencher_sismama(dados_sismama)
@@ -121,12 +125,15 @@ class SismamaRunner:
 
     def _preencher_sismama(self, dados_sismama: List[dict]) -> None:
         """
-        Preenche o SIS MAMA com os dados obtidos da API, chamando a função 'digita_dados'.
-
+        Preenche o SIS MAMA com os dados obtidos da API utilizando a classe SismamaDigitador.
+        
         :param dados_sismama: Lista de dicionários contendo dados para cadastro no SIS MAMA.
         """
         logger.info("Iniciando preenchimento de dados no SIS MAMA.")
-        digita_dados(dados_sismama, self.salvar01_image, self.screenshot_path)
+        
+        digitador = SismamaDigitador(api_client=self.api_client)
+        digitador.inserir_dados_sismama(dados_sismama)
+
 
     def _finalizar_sismama(self) -> None:
         """

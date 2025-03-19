@@ -3,13 +3,13 @@ from pywinauto.timings import TimeoutError
 from src.config.logger import logger
 from .image_services import preparar_imagem_para_ocr
 import pytesseract
-
+from datetime import datetime 
 
 import pyautogui
 import re
+ 
 
-
-def validar_popup_data_realizacao(app: Application) -> bool:
+def validar_popup_data_realizacao(app: Application, api_client, item_id: int) -> bool:
     """
     Verifica se um pop-up de 'Data de realização' (ou com título 'Confirma') aparece.
     Se aparecer, extrai o texto, loga, clica em 'Não' (ou 'OK'), pressiona F6 e clica na aba "Requisição".
@@ -21,15 +21,23 @@ def validar_popup_data_realizacao(app: Application) -> bool:
         if dialog.exists(timeout=4):
 
             dialog.draw_outline()
-
             rect = dialog.rectangle()
-            left = rect.left
-            top = rect.top
-            width = rect.width()
-            height = rect.height()
-
-            texto_capturado = captura_texto_pop_up(left, top, width, height)
+            texto_capturado = captura_texto_pop_up(rect.left, rect.top, rect.width(), rect.height())
             logger.info(f"Pop-up de data de realização detectado: {texto_capturado}")
+            
+            payload = {
+                "status": "ERROR",
+                "stage": "SISMAMA",
+                "ended_at": datetime.now().isoformat(),
+                "bot_error_message": texto_capturado,
+            }
+
+            response = api_client.update_item(item_id, **payload)
+            if response:
+                logger.info(f"Item {item_id} atualizado com status ERROR devido ao pop-up.")
+            else:
+                logger.error(f"Falha ao atualizar item {item_id} via API.")
+
 
             try:
                 botao_nao = dialog.child_window(title="Não", control_type="Button")
@@ -60,10 +68,19 @@ def validar_popup_data_realizacao(app: Application) -> bool:
         return False
 
 
-def tratar_pop_up_informacao(app: Application) -> None:
+def tratar_pop_up_informacao(app, api_client, item_id: int) -> bool:
     """
     Aguarda e trata o pop-up de 'Informação' após salvar os dados.
-    Se o pop-up for encontrado, extrai o texto via OCR e clica em OK.
+    Se o pop-up for encontrado, extrai o texto via OCR, atualiza o item na API e clica em OK.
+    
+    Retorna:
+      - True se o pop-up for encontrado e tratado;
+      - False se não for encontrado ou em caso de erro.
+    
+    Parâmetros:
+      - app: Instância da aplicação do pywinauto.
+      - api_client: Instância do APIClient para atualizar o item.
+      - item_id: ID do item que será atualizado.
     """
     try:
         dialog = app.window(class_name="#32770", title="Informação")
@@ -76,12 +93,34 @@ def tratar_pop_up_informacao(app: Application) -> None:
             ]
             mensagem = " ".join(partes).replace("\r", " ").replace("\n", " ").strip()
             logger.info(f"Pop-up 'Informação': {mensagem}")
+            
+            # Atualiza o item via API com os dados extraídos do pop-up
+            payload = {
+                "status": "ERROR",  # Ou o status que indicar que houve pop-up
+                "stage": "SISMAMA",
+                "ended_at": datetime.now().isoformat(),
+                "bot_error_message": mensagem,
+            }
+            response = api_client.update_item(item_id, **payload)
+            if response:
+                logger.info(f"Item {item_id} atualizado com sucesso com dados do pop-up.")
+            else:
+                logger.error(f"Falha ao atualizar item {item_id} via API com dados do pop-up.")
+            
+            # Clica no botão 'OK' do pop-up
             dialog.child_window(title="OK", control_type="Button").click()
+            pyautogui.press(["F6"])  
+            pyautogui.press(["F2"])
+            return True  # Pop-up encontrado e tratado
         else:
             logger.info("Pop-up 'Informação' não encontrado.")
+            return False  # Pop-up não apareceu
     except TimeoutError:
         logger.warning("O pop-up 'Informação' não apareceu dentro do tempo esperado.")
-
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao tratar pop-up de informação: {e}")
+        return False
 
 def captura_texto_pop_up(left: int, top: int, width: int, height: int) -> str:
     """
