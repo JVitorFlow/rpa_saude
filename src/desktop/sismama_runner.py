@@ -9,7 +9,7 @@ import pyautogui
 import pygetwindow as gw
 
 from src.config.logger import logger
-from utils.imagens import espera_imagem_aparecer
+from src.utils.imagens import espera_imagem_aparecer
 
 from .sismama_digitador import SismamaDigitador
 
