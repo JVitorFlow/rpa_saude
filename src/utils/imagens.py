@@ -1,13 +1,16 @@
 import time
+
 import pyautogui
+
 from src.config.logger import logger
+
 
 def espera_imagem_aparecer(
     imagem: str,
     regiao: tuple = None,
     tolerancia: float = 0.8,
     max_tentativas: int = 50,
-    intervalo: float = 0.2
+    intervalo: float = 0.2,
 ) -> tuple | None:
     """
     Aguarda até que a imagem especificada apareça na tela (ou em uma região),
@@ -24,27 +27,37 @@ def espera_imagem_aparecer(
 
     while tentativas < max_tentativas:
         try:
-            # Localiza o centro da imagem na tela/na região
-            location = pyautogui.locateCenterOnScreen(imagem, confidence=tolerancia, region=regiao)
+
+            location = pyautogui.locateCenterOnScreen(
+                imagem, confidence=tolerancia, region=regiao
+            )
             if location:
                 x, y = location
                 pyautogui.moveTo(x, y)
-                logger.info(f"Imagem '{imagem}' encontrada e cursor movido para ({x}, {y}).")
+                logger.info(
+                    f"Imagem '{imagem}' encontrada e cursor movido para ({x}, {y})."
+                )
                 return (x, y)
             else:
-                # Logar apenas a cada 5 tentativas para evitar excesso de logs
+
                 if tentativas % 5 == 0:
-                    logger.info(f"Imagem '{imagem}' não encontrada. Tentativa {tentativas+1}/{max_tentativas}...")
-            
+                    logger.info(
+                        f"Imagem '{imagem}' não encontrada. Tentativa {tentativas+1}/{max_tentativas}..."
+                    )
+
             tentativas += 1
             time.sleep(intervalo)
 
         except Exception as e:
-            # Em caso de exceções do PyAutoGUI ou algo similar
+
             if tentativas % 5 == 0:
-                logger.error(f"Erro ao procurar imagem '{imagem}': {e} (tentativa {tentativas+1}/{max_tentativas})")
+                logger.error(
+                    f"Erro ao procurar imagem '{imagem}': {e} (tentativa {tentativas+1}/{max_tentativas})"
+                )
             tentativas += 1
             time.sleep(intervalo)
 
-    logger.warning(f"Número máximo de tentativas ({max_tentativas}) atingido para localizar '{imagem}'.")
+    logger.warning(
+        f"Número máximo de tentativas ({max_tentativas}) atingido para localizar '{imagem}'."
+    )
     return None

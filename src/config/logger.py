@@ -1,6 +1,8 @@
-from loguru import logger
-from .config import Config
 import os
+
+from loguru import logger
+
+from .config import Config
 
 # Certificar-se de que o diretório de logs existe
 os.makedirs(Config.LOG_DIR, exist_ok=True)

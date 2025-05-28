@@ -3,18 +3,20 @@ import re
 import time
 import traceback
 import unicodedata
-import pyautogui
-
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import pyautogui
 from pywinauto import Application
-from .services.popup_services import (
-    tratar_pop_up_informacao,
-    validar_popup_data_realizacao,
-)
+
 from src.config.logger import logger
-from src.controllers.api_handler import atualizar_item_sismama, atualizar_item_erro_sismama
+from src.controllers.api_handler import (atualizar_item_erro_sismama,
+                                         atualizar_item_sismama)
+
+from .services.popup_services import (tratar_pop_up_informacao,
+                                      validar_popup_data_realizacao)
+
 
 def is_valid_size(size_value: Any) -> bool:
     """

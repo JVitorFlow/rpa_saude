@@ -1,7 +1,9 @@
-import schedule
 import time
 import traceback
 from datetime import datetime
+
+import schedule
+
 from main import OrquestradorRPA
 
 executando = False

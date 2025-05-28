@@ -1,7 +1,9 @@
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
 from src.config.logger import logger
+
 
 def mudar_para_iframe(driver, xpath_iframe, tempo_espera=30):
     """Muda o foco do Selenium para um iframe específico."""

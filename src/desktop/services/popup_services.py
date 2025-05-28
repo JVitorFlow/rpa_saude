@@ -1,13 +1,15 @@
-from pywinauto import Application
-from pywinauto.timings import TimeoutError
-from src.config.logger import logger
-from .image_services import preparar_imagem_para_ocr
-import pytesseract
-from datetime import datetime 
+import re
+from datetime import datetime
 
 import pyautogui
-import re
- 
+import pytesseract
+from pywinauto import Application
+from pywinauto.timings import TimeoutError
+
+from src.config.logger import logger
+
+from .image_services import preparar_imagem_para_ocr
+
 
 def validar_popup_data_realizacao(app: Application, api_client, item_id: int) -> bool:
     """

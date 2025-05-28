@@ -1,5 +1,6 @@
 from PIL import Image, ImageEnhance, ImageFilter
 
+
 def preparar_imagem_para_ocr(imagem: Image.Image) -> Image.Image:
     """
     Prepara a imagem para OCR:

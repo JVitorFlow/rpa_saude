@@ -1,14 +1,15 @@
 import re
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+
 from selenium.common.exceptions import TimeoutException
-from src.browser.utils.element_utils import (
-    capturar_texto_por_xpath,
-    capturar_valor_input_por_xpath,
-)
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+from src.browser.utils.element_utils import (capturar_texto_por_xpath,
+                                             capturar_valor_input_por_xpath)
+from src.browser.utils.frame_manager import (mudar_para_iframe,
+                                             voltar_para_frame_padrao)
 from src.config.logger import logger
-from src.browser.utils.frame_manager import mudar_para_iframe, voltar_para_frame_padrao
 
 
 def extrair_dados_paciente(driver):
@@ -17,23 +18,26 @@ def extrair_dados_paciente(driver):
         idade_texto = capturar_texto_por_xpath(
             driver, "//div[@id='lblDataNascimento']//span"
         )
-        match_idade = re.search(r"\((\d+)\s+anos", idade_texto)
+        match_idade = re.search(r'\((\d+)\s+anos', idade_texto)
         idade_paciente = int(match_idade.group(1)) if match_idade else None
 
         # Clica em 'Fontes pagadoras' e aguarda a exibição da seção "Dados cadastrais"
-        fonte_pagadoras = driver.find_element(By.XPATH, "//span[contains(text(),'Fontes pagadoras')]")
+        fonte_pagadoras = driver.find_element(
+            By.XPATH, "//span[contains(text(),'Fontes pagadoras')]"
+        )
         fonte_pagadoras.click()
         WebDriverWait(driver, 5).until(
-            EC.visibility_of_element_located((By.XPATH, "//span[normalize-space()='Dados cadastrais']"))
+            EC.visibility_of_element_located(
+                (By.XPATH, "//span[normalize-space()='Dados cadastrais']")
+            )
         )
         logger.info("Tela 'Dados cadastrais' carregada com sucesso.")
 
         # Extrai a raça/etnia
         raca_etinia = capturar_valor_input_por_xpath(
             driver,
-            "//span[contains(text(), 'Raça/Cor do paciente')]/ancestor::td/following-sibling::td//input[@type='text']"
+            "//span[contains(text(), 'Raça/Cor do paciente')]/ancestor::td/following-sibling::td//input[@type='text']",
         )
-
 
         raca_etinia = capturar_valor_input_por_xpath(
             driver,
@@ -41,15 +45,15 @@ def extrair_dados_paciente(driver):
         )
 
         dados = {
-            "idade_paciente": idade_paciente,
-            "raca_etinia": raca_etinia,
+            'idade_paciente': idade_paciente,
+            'raca_etinia': raca_etinia,
         }
 
-        logger.info(f"Dados do paciente extraídos: {dados}")
+        logger.info(f'Dados do paciente extraídos: {dados}')
         return dados
 
     except Exception as e:
-        logger.error(f"Erro ao extrair dados do paciente: {str(e)}")
+        logger.error(f'Erro ao extrair dados do paciente: {str(e)}')
         return {}
 
 
@@ -66,9 +70,8 @@ def extrair_informacoes_paciente(driver) -> dict:
 
     voltar_para_frame_padrao(driver)
 
-    
     logger.info("Aguardando a tela 'Manutenção de indivíduo' carregar...")
-    
+
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located(
             (
@@ -79,7 +82,9 @@ def extrair_informacoes_paciente(driver) -> dict:
     )
     logger.info("Tela 'Manutenção de indivíduo' carregada com sucesso.")
 
-    if not mudar_para_iframe(driver, "//sn-modal-frame[@class='ng-star-inserted']//iframe"):
+    if not mudar_para_iframe(
+        driver, "//sn-modal-frame[@class='ng-star-inserted']//iframe"
+    ):
         logger.error(
             "Não foi possível acessar o frame //sn-modal-frame[@class='ng-star-inserted']//iframe"
         )
@@ -87,13 +92,13 @@ def extrair_informacoes_paciente(driver) -> dict:
 
     # 3. Extrai valores do formulário
     informacoes_paciente = {
-        "data_nascimento": capturar_valor_input_por_xpath(
+        'data_nascimento': capturar_valor_input_por_xpath(
             driver, "//input[@name='$V_DataNascimento']"
         ),
-        "Sexo": capturar_valor_input_por_xpath(
+        'Sexo': capturar_valor_input_por_xpath(
             driver, "(//div[@id='formularioCadastro.Sexo']//input)[2]"
         ),
-        "CNS": capturar_valor_input_por_xpath(
+        'CNS': capturar_valor_input_por_xpath(
             driver, "//div[@id='formularioCadastro.CNS']//input"
         ),
     }
@@ -109,11 +114,11 @@ def obter_nome_paciente(driver):
                 (By.XPATH, "//div[@id='lblPaciente']//input")
             )
         )
-        nome_paciente = campo_nome_paciente.get_attribute("value").strip()
+        nome_paciente = campo_nome_paciente.get_attribute('value').strip()
 
-        logger.info(f"Nome do paciente extraído: {nome_paciente}")
+        logger.info(f'Nome do paciente extraído: {nome_paciente}')
         return nome_paciente
 
     except TimeoutException:
-        logger.error("Erro: Nome do paciente não encontrado na tela.")
+        logger.error('Erro: Nome do paciente não encontrado na tela.')
         return None

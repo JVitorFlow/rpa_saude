@@ -1,10 +1,10 @@
+import logging
 from datetime import datetime
+
 from src.config.logger import logger
 
-from datetime import datetime
-import logging
-
 logger = logging.getLogger(__name__)
+
 
 def formatar_data_iso(valor: str) -> str:
     """
@@ -15,30 +15,23 @@ def formatar_data_iso(valor: str) -> str:
     """
     if not valor:
         return None
-    
-    # Remove espaços extras e possíveis duplicações
-    valor = valor.strip()
-    # Caso existam dois "//", remove duplicações
-    valor = valor.replace("//", "/")
 
-    # 1. Tenta parsear como dd/mm/yyyy
+    valor = valor.strip()
+    valor = valor.replace('//', '/')
+
     try:
-        dt = datetime.strptime(valor, "%d/%m/%Y")
-        # Se quiser só data sem horário, use dt.date().isoformat()
-        # Se preferir 'yyyy-mm-ddTHH:MM:SS', mantenha dt.isoformat().
+        dt = datetime.strptime(valor, '%d/%m/%Y')
         return dt.date().isoformat()
     except ValueError:
-        pass  # Se falhar, tenta outro formato
+        pass
 
-    # 2. Tenta parsear como dd/mm/yyyy HH:MM:SS
-    formatos_possiveis = ["%d/%m/%Y %H:%M:%S", "%d/%m/%Y - %H:%M:%S"]
+    formatos_possiveis = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y - %H:%M:%S']
     for formato in formatos_possiveis:
         try:
             dt = datetime.strptime(valor, formato)
             return dt.isoformat()
         except ValueError:
             continue
-    
+
     logger.error(f"Erro ao converter data '{valor}': formato não suportado.")
     return None
-
