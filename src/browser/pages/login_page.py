@@ -1,7 +1,8 @@
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
 from src.config.logger import logger
 
 
@@ -19,6 +20,11 @@ class ShiftLoginPage:
             By.XPATH,
             "//p[contains(text(), 'Já existe um usuário autenticado')]",
         )
+        self.alerta_erro_login = (
+            By.CSS_SELECTOR,
+            ".ant-notification-notice-description"
+        )
+
 
     def acessar_pagina(self, url):
         logger.info(f"Acessando a URL: {url}")
@@ -36,13 +42,24 @@ class ShiftLoginPage:
         logger.info("Clicando no botão de login.")
         self.driver.find_element(*self.btn_login).click()
 
-    def verificar_alerta_autenticado(self):
+
+    def verificar_erro_login(self):
+        """
+        Valida se o alerta de 'Usuário e/ou senha inválido(s)' do Ant Design Notification aparece.
+        Retorna True se encontrado, False caso contrário.
+        """
         try:
-            WebDriverWait(self.driver, 5).until(
-                EC.presence_of_element_located(self.alerta_usuario_autenticado)
+            elemento = WebDriverWait(self.driver, 5).until(
+                EC.visibility_of_element_located(self.alerta_erro_login)
             )
-            logger.warning("Alerta de usuário autenticado encontrado.")
-            return True
+            texto = elemento.text.strip().lower()
+            if "usuário e/ou senha inválido" in texto:
+                logger.warning("Alerta de erro de login detectado: Usuário e/ou senha inválido(s)")
+                return True
+            else:
+                logger.warning(f"Notificação diferente encontrada: '{texto}'")
+                return False
         except TimeoutException:
-            logger.info("Nenhum alerta de usuário autenticado encontrado.")
+            logger.info("Nenhum alerta de erro de login encontrado.")
             return False
+
