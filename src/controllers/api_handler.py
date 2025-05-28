@@ -9,32 +9,35 @@ def gerar_payload_api(task_id, item_id, dados):
     return {
         'task': task_id,
         'item': item_id,
-        'os_number': dados.get('os_number', ''),
-        'nome_paciente': dados.get('nome_paciente', ''),
-        'idade_paciente': (
-            int(dados['idade_paciente'])
-            if dados.get('idade_paciente')
-            else None
-        ),
-        'raca_etinia': dados.get('raca_etinia'),
-        'cartao_sus': dados.get('CNS'),
-        'data_coleta': formatar_data_iso(dados.get('data_coleta')),
-        'data_liberacao': formatar_data_iso(dados.get('data_liberacao')),
-        'tamanho_lesao': dados.get('tamanho_lesao'),
-        'caracteristica_lesao': dados.get('caracteristica_lesao'),
-        'localizacao_lesao': dados.get('localizacao_lesao'),
-        'data_nascimento': formatar_data_iso(dados.get('data_nascimento')),
-        'sexo': dados.get('Sexo'),
-        'codigo_postal': dados.get('codigo_postal'),
-        'logradouro': dados.get('logradouro'),
-        'numero_residencial': dados.get('numero_residencial'),
-        'cidade': dados.get('cidade'),
-        'estado': dados.get('estado'),
+        'os_number': normalizar_dado(dados, 'os_number', ''),
+        'nome_paciente': normalizar_dado(dados, 'nome_paciente', ''),
+        'recipiente': normalizar_dado(dados, 'recipiente'),
+        'idade_paciente': normalizar_dado(dados, 'idade_paciente', cast=int),
+        'raca_etinia': normalizar_dado(dados, 'raca_etinia'),
+        'cartao_sus': normalizar_dado(dados, 'CNS'),
+        'data_coleta': formatar_data_iso(normalizar_dado(dados, 'data_coleta')),
+        'data_liberacao': formatar_data_iso(normalizar_dado(dados, 'data_liberacao')),
+        'tamanho_lesao': normalizar_dado(dados, 'tamanho_lesao'),
+        'caracteristica_lesao': normalizar_dado(dados, 'caracteristica_lesao'),
+        'localizacao_lesao': normalizar_dado(dados, 'localizacao_lesao'),
+        'data_nascimento': formatar_data_iso(normalizar_dado(dados, 'data_nascimento')),
+        'sexo': normalizar_dado(dados, 'Sexo'),
+        'codigo_postal': normalizar_dado(dados, 'codigo_postal'),
+        'logradouro': normalizar_dado(dados, 'logradouro'),
+        'numero_residencial': normalizar_dado(dados, 'numero_residencial'),
+        'cidade': normalizar_dado(dados, 'cidade'),
+        'estado': normalizar_dado(dados, 'estado'),
         'status_shift': None,
         'shift_result': None,
         'sismama_result': None,
         'stage': None,
     }
+
+
+
+def normalizar_dado(dados, campo, padrao=None, cast=None):
+    valor = dados.get(campo, padrao)
+    return cast(valor) if cast and valor is not None else valor
 
 
 def enviar_dados_api(api_client, task_id, item_id, dados):
