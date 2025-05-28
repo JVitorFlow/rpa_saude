@@ -81,7 +81,7 @@ def extrair_dados_anatomopatologico(driver):
         dados = {
             'data_coleta': data_coleta
             if data_coleta
-            else "Campo 'data_coleta' ausente no exame",
+            else "Campo 'data_coleta' nao especificada (NI)",
             'data_liberacao': data_liberacao
             if data_liberacao
             else "Campo 'data_liberacao' nao especificada (NI)",
@@ -96,7 +96,7 @@ def extrair_dados_anatomopatologico(driver):
             else "Campo 'localizacao_lesao' nao especificada (NI)",
         }
 
-        logger.info(f'📌 Dados do exame anatomopatológico extraídos: {dados}')
+        logger.info(f'Dados do exame anatomopatológico extraídos: {dados}')
         return dados
 
     except Exception as e:

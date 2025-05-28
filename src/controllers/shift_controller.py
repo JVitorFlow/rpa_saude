@@ -126,6 +126,7 @@ class ShiftController:
         """Extrai e organiza os dados da O.S."""
 
         recipiente_encontrado = buscar_prefixo_numero_recipiente(self.driver)
+        logger.success(f"Recipiente encontrado: {recipiente_encontrado}")
 
         if not recipiente_encontrado:
             logger.warning("Recipiente correspondente à imagem não foi encontrado.")
