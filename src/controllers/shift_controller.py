@@ -37,7 +37,7 @@ class ShiftController:
         self.usuario = usuario
         self.senha = senha
         self.screenshot_path = screenshot_path
-        self.driver = iniciar_driver()
+        self.driver = iniciar_driver(headless=True)
         self.login_page = ShiftLoginPage(self.driver)
         self.os_page = OSConsultaPage(self.driver)
         self.api_client = api_client
