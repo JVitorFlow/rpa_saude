@@ -101,7 +101,7 @@ class ShiftController:
             ):
                 continue  # Pula para a próxima O.S.
 
-            dados_extraidos = self._extrair_dados_do_shift(os_numero, nome_pessoa)
+            dados_extraidos = self._extrair_dados_do_shift(os_numero, item_id, nome_pessoa)
             if not dados_extraidos:
                 continue
 
@@ -116,7 +116,7 @@ class ShiftController:
 
         logger.info("Processamento das tarefas concluído.")
 
-    def _extrair_dados_do_shift(self, os_numero, nome_pessoa):
+    def _extrair_dados_do_shift(self, os_numero, item_id, nome_pessoa):
         """Extrai e organiza os dados da O.S."""
 
         recipiente_encontrado = buscar_prefixo_numero_recipiente(self.driver)
