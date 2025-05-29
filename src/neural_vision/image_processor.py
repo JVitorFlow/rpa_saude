@@ -32,6 +32,7 @@ class AutomacaoImageProcess:
         """
         Processa um item individual, analisa a imagem e atualiza o status via API.
         """
+        logger.info(f'→ Entrada em processar_item: {item!r}')
         item_id = item.get('id')
         os_number = item.get('os_number')
         recipiente = item.get('shift_data', {}).get('recipiente')
@@ -68,6 +69,7 @@ class AutomacaoImageProcess:
             logger.info(f'Imagem final usada para análise: {image_path_convertida}')
             image_analyzer = ImageAnalyzer()
             result_data = image_analyzer.analyze_image(str(image_path_convertida))
+            logger.debug(f'Result_data do analyze_image: {result_data!r}')
 
             if result_data:
                 logger.info(
@@ -105,13 +107,17 @@ class AutomacaoImageProcess:
         Busca o caminho de imagem que começa com o número do recipiente.
         Exemplo: 2303667634_20250522112305.TIF
         """
-        extensoes = ['*.tif', '*.tiff','*.png', '*.jpg', '*.jpeg']
+        extensoes = ['.tif', '.tiff', '.png', '.jpg', '.jpeg']
         
         for ext in extensoes:
-            padrao = str(IMAGES_DIR / f"{recipiente}_*{ext[1:]}")
-            arquivos = glob.glob(padrao, recursive=False)
+            padrao = os.path.join(str(IMAGES_DIR), f"{recipiente}_*{ext}")
+            logger.info(f"Procurando por imagem com padrão: {padrao}")
+            arquivos = glob.glob(padrao)
             if arquivos:
+                logger.info(f"[DEBUG] Imagem encontrada: {arquivos[0]}")
                 return Path(arquivos[0])  # retorna o primeiro encontrado
+            
+        logger.error(f"[DEBUG] Nenhuma imagem encontrada para recipiente: {recipiente}")
         return None
 
     def _atualizar_status_item(
@@ -128,6 +134,8 @@ class AutomacaoImageProcess:
             'ended_at': datetime.now().isoformat(),
         }
 
+        logger.debug(f'Payload update_item: {payload}')
+
         if result_data:
 
             if isinstance(result_data, dict):
@@ -139,6 +147,7 @@ class AutomacaoImageProcess:
             payload['bot_error_message'] = bot_error_message
 
         response = self.api_client.update_item(**payload)
+        logger.debug(f'Resposta update_item: {response!r}')
         if response:
             logger.info(
                 f'Item {item_id} atualizado para {status} na etapa {stage}.'
@@ -159,11 +168,13 @@ class AutomacaoImageProcess:
         items_pendentes = self.api_client.get_pending_items(
             stage='IMAGE_PROCESS'
         )
+        logger.info(f'RESP do get_pending_items: {items_pendentes!r} (type={type(items_pendentes)})')
         if not items_pendentes:
             logger.info('Nenhum item pendente para processamento de imagens.')
             return
 
         for task in items_pendentes:
+            logger.debug(f'→ Tarefa RAW: {task!r}')
             task_id = task.get('id')
             items = task.get('items', [])
 
