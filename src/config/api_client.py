@@ -4,7 +4,7 @@ import requests
 
 from .config import Config
 from .logger import logger
-
+from typing import Dict, Any
 
 class APIClient:
     """Cliente para interagir com a API."""
@@ -70,6 +70,20 @@ class APIClient:
         except Exception as e:
             logger.error(f'Erro ao enviar os dados do Shift: {str(e)}')
         return None
+    
+    def upsert_shift_data(self, item_id: int, shift_data: Dict[str, Any]) -> Dict[str, Any] | None:
+        """
+        Cria ou atualiza os dados de Shift para o item especificado.
+        Chama o endpoint POST /items/{item_id}/shift-data/.
+        """
+        endpoint = f'items/{item_id}/shift-data/'
+        logger.info(f'Upserting ShiftData para item {item_id}: {json.dumps(shift_data, indent=4, ensure_ascii=False)}')
+        response = self._make_request('POST', endpoint, data=shift_data)
+        if response:
+            logger.info(f'ShiftData upserted com sucesso: {json.dumps(response, indent=4, ensure_ascii=False)}')
+        else:
+            logger.error(f'Falha no upsert de ShiftData para item {item_id}.')
+        return response
 
     def update_task(self, task_id, **kwargs):
         """Atualiza uma tarefa específica."""
