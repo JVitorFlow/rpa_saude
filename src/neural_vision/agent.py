@@ -66,11 +66,14 @@ class ImageAnalyzer:
             return 'Erro ao processar a imagem.'
 
         prompt = (
-            'Analise a imagem de um formulário médico anexado e identifique, '
-            "de forma precisa, todos os campos marcados com 'X' na seção de 'dados clínicos'. "
-            'Caso não haja nenhuma marcação, informe claramente usando a frase '
-            "'Nenhuma marcação encontrada no formulário'. Se houver marcações, "
-            'forneça uma lista organizada dos itens marcados.'
+            "Você é um assistente especialista em análise de formulários médicos. "
+            "Sua tarefa é analisar uma imagem de um formulário e extrair **exclusivamente** as marcações com 'X' "
+            "presentes na seção intitulada 'dados clínicos'.\n\n"
+            "- Liste apenas os itens marcados com 'X' na seção 'dados clínicos', sem adicionar qualquer introdução, explicação ou conclusão. "
+            "- Se **não houver nenhuma marcação**, responda apenas com: 'Nenhuma marcação encontrada no formulário'. "
+            "- Caso haja marcações, forneça uma **lista clara e organizada**, apenas com os nomes dos campos marcados.\n\n"
+            "**IMPORTANTE:** Não adicione frases como 'Aqui estão...', 'Se precisar de mais informações...' ou qualquer outro texto adicional. "
+            "A resposta deve conter **somente** os dados solicitados, nada mais."
         )
 
         human_message = [
