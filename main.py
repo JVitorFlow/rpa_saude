@@ -1,195 +1,157 @@
 import os
 import sys
+import ctypes
 from datetime import datetime
+from typing import Any, List, Optional, Type
 
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-)
 
 from src.config.api_client import APIClient
 from src.config.auth_service import AuthenticationService
 from src.config.config import Config
 from src.config.logger import logger
 from src.controllers.shift_controller import ShiftController
-from src.desktop.sismama_runner import SismamaRunner
 from src.neural_vision.image_processor import AutomacaoImageProcess
+from src.desktop.sismama_runner import SismamaRunner
 
-ROBOT_ID = Config.ROBOT_ID
+def is_admin() -> bool:
+    """
+    Verifica se o processo atual está rodando com privilégios de administrador.
+    """
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
 
 
 class OrquestradorRPA:
-    """Classe responsável por orquestrar os estágios da automação."""
+    """
+    Orquestra o fluxo completo de automação:
+      1. Autentica na API
+      2. Processa SHIFT
+      3. Processa IMAGE_PROCESS
+      4. Processa SISMAMA
+    """
 
-    def __init__(self):
-        self.api_client = None
-        self.auth_token = None
+    def __init__(self, config: Type[Config] = Config) -> None:
+        self.config = config
+        self.api_client: Optional[APIClient] = None
+        self.auth_token: Optional[str] = None
 
-    def autenticar_api(self):
-        """Autentica na API e inicializa o cliente."""
+    def autenticar_api(self) -> bool:
         logger.info('Autenticando na API...')
-
         username = os.getenv('API_USERNAME')
         password = os.getenv('API_PASSWORD')
-
-        auth_response = AuthenticationService.authenticate(username, password)
-
-        if not auth_response:
+        response = AuthenticationService.authenticate(username, password)
+        if not response or 'access' not in response:
             logger.error('Falha na autenticação. Verifique suas credenciais.')
             return False
-
-        self.auth_token = auth_response.get('access')
-        if not self.auth_token:
-            logger.error('Token de acesso não recebido.')
-            return False
-
+        self.auth_token = response['access']
         self.api_client = APIClient(auth_token=self.auth_token)
         logger.success('Autenticação bem-sucedida.')
         return True
 
-    def processar_estagio(self, stage, processador_class=None):
-        """
-        Processa os dados de um estágio específico utilizando a automação apropriada.
-        """
+    def processar_estagio(
+        self, stage: str, processor_class: Optional[Type[Any]] = None
+    ) -> None:
         try:
             logger.info(f'Verificando itens pendentes no estágio: {stage}')
-            dados = self.api_client.get_pending_items(stage=stage)
-
-            if isinstance(dados, dict) and 'detail' in dados:
+            data = self.api_client.get_pending_items(stage=stage)
+            if isinstance(data, dict) and data.get('detail'):
                 logger.warning(
-                    f"Nenhuma tarefa pendente para {stage}. Resposta da API: {dados['detail']}"
+                    f"Nenhuma tarefa pendente para {stage}: {data['detail']}"
                 )
                 return
-
-            if not isinstance(dados, list) or not dados:
+            if not data:
                 logger.info(f'Nenhuma tarefa pendente para {stage}.')
                 return
 
-            logger.info(
-                f'{len(dados)} tarefas encontradas no estágio {stage}. Iniciando processamento...'
-            )
-
+            logger.info(f'{len(data)} item(s) pendente(s) em {stage}.')
             if stage == 'SHIFT':
-                self.processar_shift(dados)
-
-            elif stage == 'IMAGE_PROCESS' and processador_class:
-                self.processar_image_process(processador_class)
-
+                self._processar_shift(data)
+            elif stage == 'IMAGE_PROCESS' and processor_class:
+                self._processar_image(data, processor_class)
             elif stage == 'SISMAMA':
-                self.processar_sismama()
-
+                self._processar_sismama()
             else:
-                logger.warning(f'Estágio {stage} não reconhecido.')
-
+                logger.warning(f'Estágio desconhecido: {stage}')
         except Exception as e:
-            logger.error(f'Erro ao processar estágio {stage}: {str(e)}')
+            logger.error(f'Erro ao processar estágio {stage}: {e}')
 
-    def processar_shift(self, dados):
-        """Processa as tarefas do estágio SHIFT."""
+    def _processar_shift(self, data: List[dict]) -> None:
         logger.info('Iniciando processamento do SHIFT.')
-
         controller = ShiftController(
-            url=Config.URL,
-            usuario=Config.USUARIO,
-            senha=Config.SENHA,
-            screenshot_path=Config.LOG_DIR,
+            url=self.config.URL,
+            usuario=self.config.USUARIO,
+            senha=self.config.SENHA,
+            screenshot_path=self.config.LOG_DIR,
             api_client=self.api_client,
-            robot_id=ROBOT_ID,
+            robot_id=self.config.ROBOT_ID,
         )
-
-        for item in dados:
-            task_id = item.get('id')
-
-            ordens_servico = [
+        for task in data:
+            task_id = task.get('id')
+            orders = [
                 {
-                    'os': sub_item.get('os_number'),
-                    'os_name': sub_item.get('os_name'),
+                    'os': item.get('os_number'),
+                    'os_name': item.get('os_name'),
                     'task_id': task_id,
-                    'item_id': sub_item.get('id'),
+                    'item_id': item.get('id'),
                 }
-                for sub_item in item.get('items', [])
-                if sub_item.get('os_number')
+                for item in task.get('items', [])
+                if item.get('os_number')
             ]
-
-            if ordens_servico:
+            if orders:
                 self.api_client.update_task(
                     task_id=task_id,
                     status='STARTED',
                     started_at=datetime.now().isoformat(),
                     stage='SHIFT',
                 )
-                logger.info(f"Tarefa {task_id} atualizada para 'STARTED'.")
-                controller.processar_dados(ordens_servico)
+                logger.info(f'Tarefa {task_id} iniciada.')
+                controller.processar_dados(orders)
             else:
-                logger.warning(
-                    f'Nenhuma ordem de serviço válida encontrada para a tarefa {task_id}.'
-                )
-
+                logger.warning(f'Sem OS válida para tarefa {task_id}.')
         controller.finalizar()
 
-    def processar_image_process(self, processador_class):
-        """Processa as tarefas do estágio IMAGE_PROCESS."""
+    def _processar_image(
+        self, data: List[dict], processor_class: Type[Any]
+    ) -> None:
         logger.info('Iniciando processamento de imagens.')
-
         try:
-            processador = processador_class(
-                robot_id=ROBOT_ID,
+            processor = processor_class(
+                robot_id=self.config.ROBOT_ID,
                 auth_token=self.auth_token,
                 api_client=self.api_client,
             )
-
-            processador.processar_pendentes()
-
+            processor.processar_pendentes()
         except Exception as e:
-            logger.error(f'Erro no processamento de imagens: {str(e)}')
+            logger.error(f'Erro no processamento de imagens: {e}')
 
-    def processar_sismama(self):
-        """Processa as tarefas do estágio SISMAMA."""
-        logger.info('Iniciando automação do SIS MAMA.')
+    def _processar_sismama(self) -> None:
+        logger.info('Iniciando automação SIS MAMA.')
+        runner = SismamaRunner(api_client=self.api_client)  # type: ignore
         try:
-
-            dados_sismama = self.api_client.get_sismama_data()
-
-            if isinstance(dados_sismama, dict) and 'detail' in dados_sismama:
-                logger.info(
-                    f"Nenhum dado pendente para SIS MAMA. Resposta da API: {dados_sismama['detail']}"
-                )
-                return
-
-            if not dados_sismama:
-                logger.info('Nenhum dado pendente para SIS MAMA.')
-                return
-
-            logger.info(
-                f'{len(dados_sismama)} registros encontrados para SIS MAMA.'
-            )
-
-            runner = SismamaRunner(api_client=self.api_client)
-            runner._abrir_sismama()
-            import time
-
-            time.sleep(3)
-            runner._preencher_sismama(dados_sismama)
-            runner._finalizar_sismama()
-
+            runner.executar()
         except Exception as e:
-            logger.error(f'Erro ao processar SISMAMA: {str(e)}')
+            logger.error(f'Erro na etapa SISMAMA: {e}')
 
-    def executar(self):
-        """Executa o fluxo de automação."""
+    def executar(self) -> None:
         if not self.autenticar_api():
             return
-
-        self.processar_estagio('SHIFT')
-        self.processar_estagio(
-            'IMAGE_PROCESS', processador_class=AutomacaoImageProcess
-        )
-        self.processar_estagio('SISMAMA')
+        for stage, cls in [
+            ('SHIFT', None),
+            ('IMAGE_PROCESS', AutomacaoImageProcess),
+            ('SISMAMA', None),
+        ]:
+            self.processar_estagio(stage, cls)
 
 
 if __name__ == '__main__':
+    
+    sys.path.append(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    )
     try:
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-        orquestrador = OrquestradorRPA()
-        orquestrador.executar()
+        orchestrator = OrquestradorRPA()
+        orchestrator.executar()
     except Exception as e:
-        logger.error(f'Erro ao executar main: {str(e)}')
+        logger.error(f'Erro ao executar main: {e}')
