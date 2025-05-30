@@ -217,3 +217,20 @@ def atualizar_item_erro_shift(api_client, item_id, mensagem_erro):
         )
     else:
         logger.error(f"Falha ao atualizar item {item_id} para 'ERROR'.")
+
+
+def tratar_erro_admin_sismama(api_client: APIClient) -> None:
+    """
+    Marca como erro todos os itens autorizados para SISMAMA,
+    informando que faltam privilégios de administrador.
+    """
+    pendentes = api_client.get_sismama_data()
+    
+    if not pendentes or (isinstance(pendentes, dict) and pendentes.get('detail')):
+        logger.info("Nenhum item pendente para SISMAMA.")
+        return
+
+    for registro in pendentes:
+        item_id = registro.get('id')
+        mensagem = "Erro ao abrir SisMama: privilégios de administrador ausentes"
+        atualizar_item_erro_sismama(api_client, item_id, mensagem)
