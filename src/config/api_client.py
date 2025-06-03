@@ -6,6 +6,7 @@ from .config import Config
 from .logger import logger
 from typing import Dict, Any
 
+
 class APIClient:
     """Cliente para interagir com a API."""
 
@@ -70,17 +71,23 @@ class APIClient:
         except Exception as e:
             logger.error(f'Erro ao enviar os dados do Shift: {str(e)}')
         return None
-    
-    def upsert_shift_data(self, item_id: int, shift_data: Dict[str, Any]) -> Dict[str, Any] | None:
+
+    def upsert_shift_data(
+        self, item_id: int, shift_data: Dict[str, Any]
+    ) -> Dict[str, Any] | None:
         """
         Cria ou atualiza os dados de Shift para o item especificado.
         Chama o endpoint POST /items/{item_id}/shift-data/.
         """
         endpoint = f'items/{item_id}/shift-data/'
-        logger.info(f'Upserting ShiftData para item {item_id}: {json.dumps(shift_data, indent=4, ensure_ascii=False)}')
+        logger.info(
+            f'Upserting ShiftData para item {item_id}: {json.dumps(shift_data, indent=4, ensure_ascii=False)}'
+        )
         response = self._make_request('POST', endpoint, data=shift_data)
         if response:
-            logger.info(f'ShiftData upserted com sucesso: {json.dumps(response, indent=4, ensure_ascii=False)}')
+            logger.info(
+                f'ShiftData upserted com sucesso: {json.dumps(response, indent=4, ensure_ascii=False)}'
+            )
         else:
             logger.error(f'Falha no upsert de ShiftData para item {item_id}.')
         return response
@@ -112,3 +119,39 @@ class APIClient:
         endpoint = 'login/token/refresh/'
         data = {'refresh': refresh_token}
         return self._make_request('POST', endpoint, data=data)
+
+    def send_alert(
+        self, robot_id: int, alert_type: str, message: str, details: str = None
+    ) -> Dict[str, Any] | None:
+        """
+        Envia um alerta à API de acordo com o schema Swagger para RobotAlert.
+
+        Parâmetros:
+        - robot_id: ID inteiro do robô que está gerando o alerta.
+        - alert_type: tipo do alerta (por exemplo: "Informacao", "Erro", "Sucesso", "Alerta", "Debug", "Timeout", "Validacao", "Interrupcao").
+        - message: texto descritivo do alerta (mínimo 1 caractere).
+        - details: (opcional) detalhes técnicos do alerta (stack trace, logs, etc.).
+        """
+
+        endpoint = 'alerts/create/'
+        payload: Dict[str, Any] = {
+            'robot': robot_id,
+            'alert_type': alert_type,
+            'message': message,
+        }
+        if details is not None:
+            payload['details'] = details
+
+        try:
+            logger.info(
+                f'Enviando alerta: {json.dumps(payload, ensure_ascii=False)}'
+            )
+            response = self._make_request('POST', endpoint, data=payload)
+            if response is not None:
+                logger.info(
+                    f'Alerta enviado com sucesso: {json.dumps(response, ensure_ascii=False)}'
+                )
+            return response
+        except Exception as e:
+            logger.error(f'Erro ao enviar alerta: {str(e)}')
+            return None
