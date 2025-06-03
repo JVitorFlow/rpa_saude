@@ -1,6 +1,7 @@
 import os
 import sys
 import ctypes
+import traceback
 from datetime import datetime
 from typing import Any, List, Optional, Type
 
@@ -11,7 +12,7 @@ from src.config.config import Config
 from src.config.logger import logger
 from src.controllers.shift_controller import ShiftController
 from src.neural_vision.image_processor import AutomacaoImageProcess
-from src.desktop.sismama_runner import SismamaRunner
+from src.desktop.sismama_runner import SismamaRunner, VisualValidationError
 from src.controllers.api_handler import tratar_erro_admin_sismama
 
 
@@ -76,8 +77,19 @@ class OrquestradorRPA:
                 self._processar_sismama()
             else:
                 logger.warning(f"Estágio desconhecido: {stage}")
+
+        except VisualValidationError:
+            return
+        
         except Exception as e:
             logger.error(f"Erro ao processar estágio {stage}: {e}")
+            detalhes = traceback.format_exc()
+            self.api_client.send_alert(
+                robot_id=self.config.ROBOT_ID,
+                alert_type="Erro",
+                message=f"Erro no estágio {stage}: {str(e)}",
+                details=detalhes
+            )
 
     def _processar_shift(self, data: List[dict]) -> None:
         logger.info("Iniciando processamento do SHIFT.")
@@ -110,6 +122,13 @@ class OrquestradorRPA:
                 )
                 logger.info(f"Tarefa {task_id} iniciada.")
                 controller.processar_dados(orders)
+
+                self.api_client.send_alert(
+                    robot_id=self.config.ROBOT_ID,
+                    alert_type="Sucesso",
+                    message=f"Tarefa SHIFT {task_id} concluída."
+                )
+
             else:
                 logger.warning(f"Sem OS válida para tarefa {task_id}.")
         controller.finalizar()
@@ -117,6 +136,12 @@ class OrquestradorRPA:
     def _processar_image(self, data: List[dict], processor_class: Type[Any]) -> None:
         logger.info("Iniciando processamento de imagens.")
         try:
+            self.api_client.send_alert(
+                robot_id=self.config.ROBOT_ID,
+                alert_type="Informacao",
+                message="Iniciando processamento de imagens."
+            )
+
             processor = processor_class(
                 robot_id=self.config.ROBOT_ID,
                 auth_token=self.auth_token,
@@ -125,6 +150,14 @@ class OrquestradorRPA:
             processor.processar_pendentes()
         except Exception as e:
             logger.error(f"Erro no processamento de imagens: {e}")
+            detalhes = traceback.format_exc()
+
+            self.api_client.send_alert(
+                robot_id=self.config.ROBOT_ID,
+                alert_type="Erro",
+                message=f"Falha no processamento de imagens: {str(e)}",
+                details=detalhes
+            )
 
     def _processar_sismama(self) -> None:
         logger.info("Iniciando automação SIS MAMA.")
@@ -133,6 +166,14 @@ class OrquestradorRPA:
             runner.executar()
         except Exception as e:
             logger.error(str(e))
+            detalhes = traceback.format_exc()
+
+            self.api_client.send_alert(
+                robot_id=self.config.ROBOT_ID,
+                alert_type="Erro",
+                message=f"Erro na automação SIS MAMA: {str(e)}",
+                details=detalhes
+            )
             tratar_erro_admin_sismama(self.api_client)
 
     def executar(self) -> None:
